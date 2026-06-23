@@ -156,6 +156,8 @@ AUTH_USER_MODEL = 'users.User'
 # 生产环境安全配置
 # ========================
 if not DEBUG:
+    # PythonAnywhere 代理 SSL — 让 Django 识别请求是通过 HTTPS 的
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     # HTTPS 强制（如果配置了 SSL 证书）
     SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
     SESSION_COOKIE_SECURE = True
