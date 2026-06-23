@@ -1,0 +1,29 @@
+[Unit]
+Description=Movie Platform - Django Gunicorn
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+# 项目目录（部署时修改此处路径）
+WorkingDirectory=/home/ubuntu/movie-platform/backend
+
+# 启动命令
+ExecStart=/home/ubuntu/movie-platform/backend/venv/bin/gunicorn -c gunicorn.conf.py backend.wsgi:application
+
+# 重启策略
+Restart=always
+RestartSec=5
+
+# 用户和组
+User=ubuntu
+Group=www-data
+
+# 环境变量文件
+EnvironmentFile=/home/ubuntu/movie-platform/backend/.env
+
+# 日志
+StandardOutput=append:/home/ubuntu/movie-platform/backend/logs/stdout.log
+StandardError=append:/home/ubuntu/movie-platform/backend/logs/stderr.log
+
+[Install]
+WantedBy=multi-user.target

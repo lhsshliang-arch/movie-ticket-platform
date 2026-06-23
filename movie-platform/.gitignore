@@ -1,0 +1,70 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.log
+
+# 虚拟环境
+venv/
+env/
+.venv/
+*.virtualenvs/
+
+# ========================
+# Django
+# ========================
+# 敏感配置（SECRET_KEY 等）
+.env
+!.env.production
+
+# 数据库文件（本地数据不提交）
+*.sqlite3
+db.sqlite3
+
+# 上传的媒体文件（头像/海报的测试数据）
+media/avatars/*
+media/posters/*
+media/movies/*
+!media/avatars/.gitkeep
+!media/posters/.gitkeep
+!media/movies/.gitkeep
+
+# collectstatic 收集的静态文件（每次部署重新收集）
+staticfiles/
+
+# ========================
+# Node / Vue
+# ========================
+node_modules/
+# frontend/dist/  ← 取消忽略，方便 Git 拉到 PythonAnywhere 直接部署
+# 如果更习惯在 PA 上 npm run build，注释掉上一行，取消下面这行的注释
+# frontend/dist/
+
+# ========================
+# IDE
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# 部署运行时文件
+# ========================
+gunicorn.pid
+logs/

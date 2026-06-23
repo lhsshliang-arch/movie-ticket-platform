@@ -1,0 +1,22 @@
+# Django & DRF
+Django>=4.2,<5.0
+djangorestframework>=3.14,<4.0
+djangorestframework-simplejwt>=5.2,<6.0
+
+# Database
+mysqlclient>=2.2,<3.0
+
+# CORS
+django-cors-headers>=4.0,<5.0
+
+# Image processing
+Pillow>=10.0,<12.0
+
+# Production WSGI server
+gunicorn>=21.2,<23.0
+
+# Environment variables
+python-dotenv>=1.0,<2.0
+
+# Scheduled tasks (alternative to crontab)
+APScheduler>=3.10,<4.0

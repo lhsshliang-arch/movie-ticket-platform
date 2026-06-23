@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+*.log
+
+# 虚拟环境
+venv/
+env/
+.venv/
+
+# Django 敏感配置
+.env
+
+# 数据库文件
+*.sqlite3
+db.sqlite3
+
+# 媒体文件（测试数据不提交）
+media/avatars/*
+media/posters/*
+media/movies/*
+!media/avatars/.gitkeep
+!media/posters/.gitkeep
+!media/movies/.gitkeep
+
+# collectstatic 收集的静态文件
+staticfiles/
+
+# Node / Vue
+node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 部署运行时文件
+gunicorn.pid
+logs/
