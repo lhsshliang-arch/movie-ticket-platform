@@ -1,399 +1,429 @@
-# 电影票务平台 — PythonAnywhere 部署详细教程
+# 电影票务平台 — CentOS 虚拟机部署详细教程
 
-> 适用平台：PythonAnywhere.com  
-> 预计耗时：30-40 分钟  
-> 费用：免费版够用（Hacker 计划 $5/月可选 MySQL）
-
----
-
-## 为什么选 PythonAnywhere？
-
-| 对比 | 云服务器（腾讯云/阿里云） | PythonAnywhere |
-|------|---------------------------|----------------|
-| 费用 | 最低 ¥50-100/年 | **免费版可用** |
-| 环境配置 | 手动装 Nginx/Gunicorn/MySQL | **平台已配好** |
-| 命令行 | SSH | **网页终端** |
-| 域名 | 需购买 | **免费 `xxx.pythonanywhere.com`** |
-| 适合人群 | 有运维经验 | **零基础也能部署** |
+> 适用平台：CentOS 7 / CentOS Stream 8/9  
+> 预计耗时：1-2 小时  
+> 环境：Python 3.9+ / MySQL 8.0 / Nginx / Gunicorn
 
 ---
 
-## 一、部署架构图（PythonAnywhere 版）
+## 为什么选虚拟机？
+
+| 对比 | 云服务器（腾讯云/阿里云） | 本地虚拟机 |
+|------|---------------------------|-----------|
+| 费用 | 最低 ¥50-100/年 | **免费** |
+| 环境 | 远程 SSH | **本地 / 局域网访问** |
+| 学习价值 | 一键部署面板 | **完整 Linux 运维体验** |
+| 外网访问 | 公网 IP | 局域网内访问 |
+
+---
+
+## 一、部署架构图
 
 ```
-用户浏览器
+用户浏览器（宿主机或局域网）
     │
     ▼
-┌─────────────────────────────────────┐
-│      PythonAnywhere Web 服务         │
-│                                      │
-│  静态文件映射:                        │
-│    /js/*      → dist/js/             │
-│    /fonts/*   → dist/fonts/          │
-│    /favicon.ico → dist/favicon.ico   │
-│    /static/*  → staticfiles/         │
-│    /media/*   → media/               │
-│                                      │
-│  WSGI 应用 (Django):                 │
-│    /api/*     → Django REST API      │
-│    /admin/*   → Django Admin         │
-│    /*         → Vue SPA index.html   │
-└──────────────┬──────────────────────┘
-               │
-               ▼
+┌──────────────────────────────┐
+│        Nginx (80端口)         │
+│                               │
+│  /api/*    → Gunicorn (8000) │
+│  /admin/*  → Gunicorn (8000) │
+│  /static/* → staticfiles/    │
+│  /media/*  → media/          │
+│  /*        → Vue dist/       │
+└──────────┬───────────────────┘
+           │
+           ▼
 ┌──────────────────────┐
-│  SQLite（免费版）     │
-│  或 MySQL（付费版）   │
+│  Gunicorn (8000端口)  │
+│  Django REST API     │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│  MySQL (3306端口)     │
 └──────────────────────┘
 ```
 
 ---
 
-## 二、准备工作（本地操作）
+## 二、准备工作
 
-### 2.1 注册
+### 2.1 虚拟机环境
 
-- **GitHub**：https://github.com → 注册账号（已有则跳过）
-- **PythonAnywhere**：https://www.pythonanywhere.com → 点击 **"Create a Beginner account"**
-
-> PA 免费版限制：
-> - 只能用 SQLite（本项目已支持切换）
-> - 一个 web app
-> - 域名固定为 `你的PA用户名.pythonanywhere.com`
+- **VirtualBox** 或 **VMware** 安装 CentOS 7/8
+- 虚拟机网络设置为 **桥接模式** 或 **NAT + 端口转发**
+- 记录虚拟机 IP（`ip addr` 查看）
 
 ### 2.2 确认 .gitignore 已配置
 
-项目根目录已创建好 `.gitignore`，**以下文件不会被上传到 GitHub**（保护敏感信息）：
+项目根目录已创建好 `.gitignore`，敏感文件不会上传到 GitHub：
 
 | 被忽略的内容 | 原因 |
 |-------------|------|
 | `.env` | 包含 SECRET_KEY、数据库密码 |
-| `db.sqlite3`、`*.sqlite3` | 本地测试数据 |
-| `node_modules/` | 太大，npm install 即可 |
+| `db.sqlite3` | 本地测试数据 |
+| `node_modules/` | 太大 |
 | `venv/`、`.virtualenvs/` | 虚拟环境 |
 | `__pycache__/`、`*.pyc` | Python 缓存 |
-| `staticfiles/` | 部署时重新 collectstatic |
 | `media/avatars/*`、`media/posters/*` | 本地测试图片 |
-| `frontend/dist/` | 部署前本地构建即可 |
-| `.idea/`、`.vscode/` | IDE 配置 |
-
-你可以查看 `movie-platform/.gitignore` 确认。
 
 ### 2.3 本地构建 Vue 前端
 
-`.gitignore` 已经配置好，`frontend/dist/` **不会被忽略**，本地构建后直接提交即可。
-
-在 PowerShell（或 Git Bash）中：
-
 ```powershell
 cd d:\DRFVUE\movie-platform\frontend
-
-# 如果之前没装过依赖
-npm install
-
-# 构建生产版本
-npm run build
-
-# 确认产物
-dir dist
-# 应该看到: index.html  js/  fonts/  favicon.ico
+npm install              # 首次安装依赖
+npm run build            # 构建 dist/
+dir dist                 # 确认: index.html  js/  fonts/  favicon.ico
 ```
-
-> 构建完 `dist/` 就留在那里，后面跟着代码一起 `git push`。
 
 ---
 
-## 三、推送项目到 GitHub（本地操作）
-
-### 3.1 初始化 Git 仓库
-
-打开 Git Bash（或 PowerShell），执行：
+## 三、推送项目到 GitHub
 
 ```bash
 cd d:\DRFVUE\movie-platform
-
-# 初始化 Git 仓库
 git init
-
-# 添加所有文件（.gitignore 会自动过滤敏感文件）
 git add .
+git commit -m "feat: 电影票务平台"
 
-# 检查有没有不该提交的文件
-git status
-
-# 首次提交
-git commit -m "feat: 电影票务平台 - 初始化项目"
-```
-
-### 3.2 创建 GitHub 远程仓库
-
-1. 打开 https://github.com ，登录
-2. 点击右上角 **+** → **New repository**
-3. 仓库名填写：`movie-platform`
-4. **⚠️ 选择 Private（私有仓库）** — 保护你的代码
-5. **不要**勾选 "Add a README file"（本地已有）
-6. 点击 **Create repository**
-
-### 3.3 推送代码
-
-GitHub 创建完仓库后会显示命令，复制并执行：
-
-```bash
+# 在 GitHub 创建私有仓库 movie-platform 后：
 git remote add origin https://github.com/你的用户名/movie-platform.git
 git branch -M main
 git push -u origin main
 ```
 
-> 如果弹窗要求登录 GitHub，用浏览器授权即可。或者用 **Personal Access Token**：
-> GitHub → Settings → Developer settings → Personal access tokens → Generate new token（勾选 `repo` 权限），然后把 token 当密码用。
+---
 
-### 3.4 验证
+## 四、CentOS 基础环境配置
 
-浏览器打开 `https://github.com/你的用户名/movie-platform`，确认所有文件都推上去了。
+> 以下所有命令在虚拟机 CentOS 终端（root 或 sudo 用户）执行。
+
+### 4.1 更新系统 & 安装基础工具
+
+```bash
+sudo yum update -y
+sudo yum install -y git wget curl vim net-tools
+```
+
+### 4.2 安装 Python 3.9+
+
+CentOS 7 默认 Python 较低，需要安装高版本：
+
+```bash
+# CentOS 7
+sudo yum install -y centos-release-scl
+sudo yum install -y rh-python39 rh-python39-python-devel
+scl enable rh-python39 bash
+
+# CentOS Stream 8/9 直接装
+sudo dnf install -y python3 python3-devel python3-pip
+```
+
+验证：
+
+```bash
+python3 --version     # 应 >= 3.9
+```
+
+### 4.3 安装 MySQL 8.0
+
+```bash
+# 添加 MySQL 官方仓库
+sudo yum install -y https://dev.mysql.com/get/mysql80-community-release-el7-3.noarch.rpm
+
+# 安装 MySQL
+sudo yum install -y mysql-community-server
+
+# 启动 & 开机自启
+sudo systemctl start mysqld
+sudo systemctl enable mysqld
+
+# 获取临时密码
+sudo grep 'temporary password' /var/log/mysqld.log
+```
+
+登录并配置数据库：
+
+```bash
+mysql -u root -p
+# 输入上面获取的临时密码
+
+# 修改 root 密码（注意 MySQL 8.0 密码策略要求大小写+数字+特殊字符）
+ALTER USER 'root'@'localhost' IDENTIFIED BY '你的新密码如 Root@123456';
+
+# 创建项目数据库
+CREATE DATABASE movie_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+# 创建项目专用用户（可选，更安全）
+CREATE USER 'movie'@'localhost' IDENTIFIED BY 'Movie@123456';
+GRANT ALL PRIVILEGES ON movie_platform.* TO 'movie'@'localhost';
+FLUSH PRIVILEGES;
+
+EXIT;
+```
+
+### 4.4 安装 Nginx
+
+```bash
+sudo yum install -y epel-release
+sudo yum install -y nginx
+
+sudo systemctl start nginx
+sudo systemctl enable nginx
+```
+
+宿主机浏览器访问 `http://虚拟机IP`，看到 Nginx 欢迎页即安装成功。
 
 ---
 
-## 四、PythonAnywhere 拉取项目
+## 五、拉取项目 & 配置环境
 
-### 4.1 打开 PA 终端
-
-1. 登录 https://www.pythonanywhere.com
-2. 点击顶部 **Consoles** 标签
-3. 点击 **Bash** — 会打开一个网页版终端
-
-### 4.2 克隆仓库
+### 5.1 克隆仓库
 
 ```bash
-cd /home/你的PA用户名
+cd /home
+sudo mkdir -p /web
+sudo chown $USER:$USER /web
+cd /web
 
-# 克隆你的私有仓库
-git clone https://github.com/你的GitHub用户名/movie-platform.git
-
-# 确认文件已拉取
-ls movie-platform/
-# 应该看到: backend/  frontend/  .gitignore  DEPLOY.md
-ls movie-platform/frontend/dist/
-# 应该看到: index.html  js/  fonts/  favicon.ico
+git clone https://github.com/你的用户名/movie-platform.git
+cd movie-platform
 ```
 
-### 4.3 以后更新代码
+### 5.2 创建 Python 虚拟环境
 
 ```bash
-cd /home/你的PA用户名/movie-platform
+cd /web/movie-platform/backend
 
-# 每次本地改完代码 push 后，在 PA 上拉取
-git pull
-
-# 如果有数据库变更
-cd backend
-source /home/你的PA用户名/.virtualenvs/movie-env/bin/activate
-python manage.py migrate
-python manage.py collectstatic --noinput
-
-# 然后去 PA Web 标签页 → Reload
-```
-
----
-
-## 五、配置环境变量
-
-### 5.1 生成 SECRET_KEY
-
-在 PA 的 Bash 终端：
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(64))"
-# 复制输出结果（一长串字符）
-```
-
-### 5.2 创建 .env 文件
-
-在 PA 的 Bash 终端：
-
-```bash
-cd /home/你的用户名/movie-platform/backend
-nano .env
-```
-
-粘贴以下内容（**把 `<>` 部分改成你自己的**）：
-
-```ini
-DJANGO_SECRET_KEY=<刚才生成的随机字符串>
-DJANGO_DEBUG=False
-DJANGO_ALLOWED_HOSTS=你的用户名.pythonanywhere.com,localhost,127.0.0.1
-DB_ENGINE=sqlite
-DB_NAME=/home/你的用户名/movie-platform/backend/db.sqlite3
-CORS_ALLOWED_ORIGINS=https://你的用户名.pythonanywhere.com
-CSRF_TRUSTED_ORIGINS=https://你的用户名.pythonanywhere.com
-SECURE_SSL_REDIRECT=False
-SECURE_HSTS_SECONDS=0
-```
-
-> **按 `Ctrl+O`** 保存，**`Ctrl+X`** 退出。
-
-> 💡 **提示**：PA 免费版用 SQLite。如果以后升级到 Hacker 计划（$5/月），改成：
-> ```ini
-> DB_ENGINE=mysql
-> DB_NAME=你的用户名$数据库名
-> DB_USER=你的用户名
-> DB_PASSWORD=你的MySQL密码
-> DB_HOST=你的用户名.mysql.pythonanywhere-services.com
-> DB_PORT=3306
-> ```
-
----
-
-## 六、设置虚拟环境 & 安装依赖
-
-在 PA 的 **Consoles** → Bash 终端：
-
-```bash
-cd /home/你的用户名/movie-platform/backend
-
-# 创建虚拟环境
-mkvirtualenv --python=/usr/bin/python3.11 movie-env
-
-# 激活虚拟环境（mkvirtualenv 已自动激活）
-# 以后每次使用: workon movie-env
+python3 -m venv venv
+source venv/bin/activate
 
 # 安装依赖
-pip install -r requirements_pa.txt
+pip install --upgrade pip
+pip install -r requirements.txt
+# 安装 Gunicorn（生产环境 WSGI 服务器）
+pip install gunicorn
 ```
 
-> **注意**：PA 的虚拟环境命令是 `mkvirtualenv`，不是 `python -m venv`。
-
----
-
-## 七、Django 初始配置
-
-在 PA 的 Bash 终端（确保虚拟环境已激活）：
+### 5.3 创建 .env 环境变量
 
 ```bash
-cd /home/你的用户名/movie-platform/backend
+cd /web/movie-platform/backend
 
-# 生成迁移文件
+# 生成 SECRET_KEY
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+# 复制输出
+
+vim .env
+```
+
+填入：
+
+```ini
+DJANGO_SECRET_KEY=上面生成的随机字符串粘贴到这里
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=虚拟机IP,localhost,127.0.0.1
+DB_NAME=movie_platform
+DB_USER=movie
+DB_PASSWORD=Movie@123456
+DB_HOST=127.0.0.1
+DB_PORT=3306
+CORS_ALLOWED_ORIGINS=http://虚拟机IP,http://localhost
+```
+
+> IP 示例：`192.168.1.100`。如果 NAT 模式，填 `localhost` 即可。
+
+### 5.4 Django 初始化
+
+```bash
+cd /web/movie-platform/backend
+source venv/bin/activate
+
 python manage.py makemigrations users movies orders stats
-
-# 执行迁移
 python manage.py migrate
-
-# 收集静态文件（Django Admin 的 CSS/JS）
 python manage.py collectstatic --noinput
 
-# 创建管理员账户
+# 创建管理员
 python manage.py createsuperuser
-# 输入用户名、邮箱、密码
 ```
 
 ---
 
-## 八、配置 Web 应用
+## 六、配置 Gunicorn
 
-这是最关键的一步！
+### 6.1 测试 Gunicorn 能否启动
 
-### 8.1 进入 Web 选项卡
+```bash
+cd /web/movie-platform/backend
+source venv/bin/activate
 
-1. 点击 PythonAnywhere 顶部的 **Web** 标签
-2. 点击 **Add a new web app**
-3. 选择 **Manual configuration**（不要选 Django 自动配置）
-4. 选择 **Python 3.11**
-
-### 8.2 配置虚拟环境
-
-在 Web 选项卡中，找到 **Virtualenv** 部分，填入：
-
-```
-/home/你的用户名/.virtualenvs/movie-env
+gunicorn --bind 0.0.0.0:8000 backend.wsgi:application
+# Ctrl+C 停止，确认能正常启动即可
 ```
 
-（或直接点击旁边的小箭头从下拉选择）
+### 6.2 创建 systemd 服务（开机自启）
 
-### 8.3 配置 WSGI 文件
-
-在 Web 选项卡的 **Code** 部分：
-
-- 点击 **WSGI configuration file** 后面的链接（类似 `/var/www/你的用户名_pythonanywhere_com_wsgi.py`）
-
-**删除文件中的全部内容**，替换为以下内容（**把 `你的用户名` 改为你的 PA 用户名**）：
-
-```python
-import os
-import sys
-
-# 项目路径
-project_home = '/home/你的用户名/movie-platform/backend'
-if project_home not in sys.path:
-    sys.path.insert(0, project_home)
-
-# 加载 .env 环境变量
-env_path = os.path.join(project_home, '.env')
-if os.path.exists(env_path):
-    with open(env_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
-                value = value.strip().strip('"').strip("'")
-                os.environ.setdefault(key, value)
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
-
-from django.core.wsgi import get_wsgi_application
-application = get_wsgi_application()
+```bash
+sudo vim /etc/systemd/system/movie-gunicorn.service
 ```
 
-点击 **Save** 保存。
+填入：
 
-### 8.4 配置静态文件映射
+```ini
+[Unit]
+Description=Movie Platform Gunicorn
+After=network.target mysqld.service
+Wants=mysqld.service
 
-在 Web 选项卡的 **Static files** 部分，添加以下映射：
+[Service]
+User=你的Linux用户名
+Group=你的Linux用户组
+WorkingDirectory=/web/movie-platform/backend
+EnvironmentFile=/web/movie-platform/backend/.env
+ExecStart=/web/movie-platform/backend/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile /var/log/movie/gunicorn-access.log \
+    --error-logfile /var/log/movie/gunicorn-error.log \
+    backend.wsgi:application
 
-| URL | Directory | 说明 |
-|-----|-----------|------|
-| `/static/` | `/home/你的用户名/movie-platform/backend/staticfiles/` | Django Admin 静态文件 |
-| `/media/` | `/home/你的用户名/movie-platform/backend/media/` | 上传的头像/海报 |
-| `/js/` | `/home/你的用户名/movie-platform/frontend/dist/js/` | Vue 前端 JS |
-| `/fonts/` | `/home/你的用户名/movie-platform/frontend/dist/fonts/` | 图标字体 |
-| `/favicon.ico` | `/home/你的用户名/movie-platform/frontend/dist/favicon.ico` | 网站图标 |
+[Install]
+WantedBy=multi-user.target
+```
 
-> 每添加一行点击一次 ✅ 确认。共 5 条映射。
+启动服务：
 
-### 8.5 点击 Reload
+```bash
+sudo mkdir -p /var/log/movie
+sudo chown $USER:$USER /var/log/movie
 
-在 Web 选项卡顶部，点击绿色的 **Reload** 按钮。
+sudo systemctl daemon-reload
+sudo systemctl start movie-gunicorn
+sudo systemctl enable movie-gunicorn
+
+# 检查状态
+sudo systemctl status movie-gunicorn
+# 看到 active (running) 即成功
+```
+
+---
+
+## 七、配置 Nginx
+
+### 7.1 创建 Nginx 配置文件
+
+```bash
+sudo vim /etc/nginx/conf.d/movie-platform.conf
+```
+
+填入（**把 `虚拟机IP` 和项目路径改成实际值**）：
+
+```nginx
+server {
+    listen 80;
+    server_name 虚拟机IP localhost;
+
+    # 日志
+    access_log /var/log/nginx/movie-access.log;
+    error_log  /var/log/nginx/movie-error.log;
+
+    # Vue 前端静态文件
+    root /web/movie-platform/frontend/dist;
+    index index.html;
+
+    # Django Admin 静态文件
+    location /static/ {
+        alias /web/movie-platform/backend/staticfiles/;
+    }
+
+    # 上传的媒体文件（电影海报、头像）
+    location /media/ {
+        alias /web/movie-platform/backend/media/;
+    }
+
+    # API 请求 → Gunicorn
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Django Admin → Gunicorn
+    location /admin/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Vue SPA 兜底：其他路径返回 index.html（前端路由）
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+### 7.2 检查并重载 Nginx
+
+```bash
+sudo nginx -t                # 检查配置语法
+sudo systemctl reload nginx
+```
+
+---
+
+## 八、配置防火墙
+
+```bash
+# 开放 HTTP 端口
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
+
+# 如果没有 firewalld，用 iptables：
+# sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+# sudo service iptables save
+```
+
+> ⚠️ 虚拟机 NAT 模式下，需要在 VirtualBox/VMware 设置中做端口转发（宿主机端口 → 虚拟机 80 端口）。
 
 ---
 
 ## 九、配置定时任务（订单超时取消）
 
-在 PA 的 **Tasks** 标签页：
-
-- **Hourly task**: 填入执行时间（如 `:00` 表示每小时整点）
-
-或者设置 **Always-on task**（需要付费版）。免费版可以配置 **Scheduled task**：
-
-在 **Scheduled tasks** 部分：
-1. 选择执行频率：**Hourly**
-2. 时间：`:00`
-3. 命令：
+```bash
+crontab -e
 ```
-cd /home/你的用户名/movie-platform/backend && /home/你的用户名/.virtualenvs/movie-env/bin/python manage.py cancel_expired_orders
-```
-4. 点击 **Create**
 
-> 💡 免费版的定时任务每小时执行一次。VPS 版可以每分钟执行。这个小差异影响不大——用户端倒计时 15 分钟后订单失效，最坏情况是 1 小时内自动取消。
+添加一行（每 15 分钟执行一次）：
+
+```cron
+*/15 * * * * cd /web/movie-platform/backend && /web/movie-platform/backend/venv/bin/python manage.py cancel_expired_orders >> /var/log/movie/cron.log 2>&1
+```
 
 ---
 
-## 十、验证部署
+## 十、设置 SELinux（如果开启）
 
-打开浏览器，访问：
+如果 SELinux 处于 enforcing 模式，需要允许 Nginx 访问项目文件：
 
+```bash
+# 检查 SELinux 状态
+getenforce
+
+# 如果是 Enforcing，执行以下命令
+sudo setsebool -P httpd_can_network_connect on
+sudo chcon -R -t httpd_sys_content_t /web/movie-platform/frontend/dist/
+sudo chcon -R -t httpd_sys_content_t /web/movie-platform/backend/staticfiles/
+sudo chcon -R -t httpd_sys_rw_content_t /web/movie-platform/backend/media/
 ```
-https://你的用户名.pythonanywhere.com
-```
 
-你应该看到电影票务平台的首页！
+---
+
+## 十一、验证部署
+
+宿主机浏览器访问：`http://虚拟机IP`
 
 ### 测试清单
 
@@ -403,126 +433,107 @@ https://你的用户名.pythonanywhere.com
 | 电影详情 | `/movie/1` | 详情 + 场次列表 |
 | 登录 | `/login` | 登录/注册页面 |
 | 后台管理 | `/admin/` | Django Admin 登录 |
-| API 测试 | `/api/movies/` | JSON 格式电影数据 |
-| 静态文件 | `/static/admin/css/base.css` | 应该正常加载 |
+| API | `/api/movies/` | JSON 格式电影数据 |
+| 静态文件 | `/static/admin/css/base.css` | CSS 正常加载 |
 
-### 如果首页白屏
-
-在 PA 的 **Web** 标签页点击 **Reload**，然后看错误日志（Web 标签页上方有错误日志链接）。
-
-常见原因：
-- `.env` 文件中 `DJANGO_ALLOWED_HOSTS` 域名写错了
-- 静态文件映射路径不对
-- 虚拟环境没选对
-
----
-
-## 十一、免费版 vs 付费版对比
-
-| 功能 | 免费版 (Beginner) | 付费版 (Hacker $5/月) |
-|------|-------------------|------------------------|
-| 数据库 | SQLite | **MySQL** |
-| 定时任务 | 每小时一次 | **每分钟** |
-| 自定义域名 | ❌ | ✅ |
-| 静态文件 | ✅ | ✅ |
-| HTTPS | ✅（自动） | ✅ |
-| Web App 数量 | 1 | 无限 |
-| CPU / 内存 | 基础 | 更多 |
-| 外网访问 | 受限白名单 | 无限制 |
-
----
-
-## 十二、常见问题排查
-
-### 问题 1：访问显示 "Something went wrong"
-
-在 Web 标签页点击 **Error log**，查看具体报错。最常见的情况：
-
-- 数据库未迁移 → 在 Bash 终端执行 `python manage.py migrate`
-- `.env` 文件不存在或路径错误
-- 缺少 Python 包 → `pip install -r requirements_pa.txt`
-
-### 问题 2：页面加载了但样式全没了
-
-检查静态文件映射是否正确配置。访问 `/static/admin/css/base.css` 测试。
-
-### 问题 3：CORS 报错
-
-确认 `.env` 中的 `CORS_ALLOWED_ORIGINS` 包含 `https://你的用户名.pythonanywhere.com`，**注意是 https**。
-
-### 问题 4：图片上传后不显示
-
-1. 确认 `/media/` 静态映射正确
-2. 确认 `media/` 目录存在：`mkdir -p /home/你的用户名/movie-platform/backend/media`
-3. 每次重新部署后需要 **Reload** web app
-
-### 问题 5：修改代码后如何生效
+### 排查命令
 
 ```bash
-# 在 PA 的 Bash 终端
-cd /home/你的用户名/movie-platform
-git pull                         # 拉取最新代码
-cd backend
-workon movie-env
-python manage.py migrate         # 如果有数据库变更
-python manage.py collectstatic --noinput
+# 查看 Nginx 错误日志
+sudo tail -f /var/log/nginx/movie-error.log
+
+# 查看 Gunicorn 日志
+tail -f /var/log/movie/gunicorn-error.log
+
+# 检查 Gunicorn 是否运行
+sudo systemctl status movie-gunicorn
+
+# 检查 Nginx 是否运行
+sudo systemctl status nginx
+
+# 检查端口监听
+sudo netstat -tlnp | grep -E '80|8000'
 ```
 
-然后点击 Web 标签页的 **Reload**。
+---
 
-### 问题 6：修改了代码怎么更新到线上
+## 十二、日常维护命令速查
 
 ```bash
-# 步骤 1：在本地修改代码，构建前端，然后推送
-cd d:\DRFVUE\movie-platform
-git add .
-git commit -m "描述你的改动"
-git push
-
-# 步骤 2：在 PA 的 Bash 终端拉取更新
-cd /home/你的用户名/movie-platform
+# 更新代码
+cd /web/movie-platform
 git pull
 cd backend
-workon movie-env
-python manage.py migrate          # 如果有数据库变更
+source venv/bin/activate
+python manage.py migrate
 python manage.py collectstatic --noinput
+sudo systemctl restart movie-gunicorn
 
-# 步骤 3：点击 PA Web 标签页的绿色 Reload 按钮
-```
+# 查看实时日志
+sudo tail -f /var/log/nginx/movie-access.log
 
----
+# 重启服务
+sudo systemctl restart movie-gunicorn
+sudo systemctl restart nginx
 
-## 十三、日常维护命令速查
-
-```bash
-# SSH 到 PA（不需要！直接在网页 Bash 终端操作）
-
-# 激活虚拟环境
-workon movie-env
-
-# 查看生产环境日志
-# Web 标签页 → Error log 链接（或 Access log）
+# MySQL 登录
+mysql -u root -p movie_platform
 
 # Django shell
-cd /home/你的用户名/movie-platform/backend
+cd /web/movie-platform/backend
+source venv/bin/activate
 python manage.py shell
-
-# 创建管理员
-python manage.py createsuperuser
-
-# 查看数据库
-python manage.py dbshell
 ```
 
 ---
 
 ## 附录：文件对照表
 
-| 文件 | 位置 | 作用 |
-|------|------|------|
-| `requirements_pa.txt` | `backend/` | PA 专用 Python 依赖 |
-| `.env` | `backend/` | 环境变量（SECRET_KEY, DB 配置等） |
-| `pythonanywhere_wsgi.py` | `backend/` | PA WSGI 入口（参考用，实际用 Web 标签页中的） |
-| `dist/` | `frontend/` | Vue 前端构建产物 |
-| `staticfiles/` | `backend/` | `collectstatic` 后 Django Admin 静态文件 |
-| `media/` | `backend/` | 用户上传的电影海报、头像 |
+| 文件/目录 | 路径 | 作用 |
+|-----------|------|------|
+| `.env` | `backend/.env` | 环境变量（密钥、数据库配置） |
+| `venv/` | `backend/venv/` | Python 虚拟环境 |
+| `dist/` | `frontend/dist/` | Vue 前端构建产物 |
+| `staticfiles/` | `backend/staticfiles/` | Django Admin 静态文件 |
+| `media/` | `backend/media/` | 上传的海报、头像 |
+| Nginx 配置 | `/etc/nginx/conf.d/movie-platform.conf` | 反向代理 & 静态文件 |
+| Gunicorn 配置 | `/etc/systemd/system/movie-gunicorn.service` | 后端进程管理 |
+| 定时任务 | `crontab -e` | 订单超时取消 |
+
+---
+
+## 附录：常见问题
+
+### Q1：访问显示 502 Bad Gateway
+
+Gunicorn 没启动或挂了。检查：
+
+```bash
+sudo systemctl status movie-gunicorn
+sudo journalctl -u movie-gunicorn -n 50
+```
+
+### Q2：页面白屏，控制台报 JS 404
+
+检查 Nginx 配置中 `root` 路径是否正确指向 `frontend/dist/`。
+
+### Q3：图片上传后不显示
+
+1. 确认 `media/` 目录存在且有写入权限
+2. 确认 Nginx 中 `/media/` 的 `alias` 路径正确
+3. `sudo chmod -R 755 /web/movie-platform/backend/media/`
+
+### Q4：MySQL 连接被拒绝
+
+1. 检查 MySQL 是否运行：`sudo systemctl status mysqld`
+2. 检查 `.env` 中数据库密码是否正确
+3. 确认用户权限：`SELECT user,host FROM mysql.user;`
+
+### Q5：静态文件 404
+
+```bash
+cd /web/movie-platform/backend
+source venv/bin/activate
+python manage.py collectstatic --noinput
+sudo systemctl restart nginx
+```

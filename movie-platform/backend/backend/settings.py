@@ -11,7 +11,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import mimetypes
 from pathlib import Path
+
+# 注册 .webp MIME 类型（Windows 上 Python mimetypes 不识别 webp）
+mimetypes.add_type('image/webp', '.webp')
 
 # 加载 .env 文件（本地开发用，生产环境直接设置环境变量）
 try:
@@ -92,26 +96,16 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 #     }
 # }
 #
-# 数据库引擎通过环境变量切换（PythonAnywhere 免费版用 SQLite）
-DB_ENGINE = os.environ.get('DB_ENGINE', 'mysql')
-if DB_ENGINE == 'sqlite':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.environ.get('DB_NAME', BASE_DIR / 'db.sqlite3'),
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('DB_NAME', 'movie_platform'),
+        'USER': os.environ.get('DB_USER', 'root'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'root'),
+        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': os.environ.get('DB_NAME', 'movie_platform'),
-            'USER': os.environ.get('DB_USER', 'root'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'root'),
-            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-            'PORT': os.environ.get('DB_PORT', '3306'),
-        }
-    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
