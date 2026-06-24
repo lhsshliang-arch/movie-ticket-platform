@@ -33,19 +33,15 @@ class BaseStatsView(APIView):
 
 
 class OverviewView(BaseStatsView):
-    """今日概览卡片：订单数、票房、场次、在映电影"""
+    """概览卡片：累计订单、累计票房、在映电影、总场次"""
 
     def get(self, request):
-        today = timezone.now().date()
-
-        order_count = Order.objects.filter(created_at__date=today).count()
-
-        box_office = Order.objects.filter(
-            status='paid', paid_at__date=today,
-        ).aggregate(total=Sum('total_price'))['total'] or 0
-
-        session_count = Session.objects.filter(start_time__date=today).count()
+        order_count = Order.objects.count()
+        box_office = Order.objects.filter(status='paid').aggregate(
+            total=Sum('total_price')
+        )['total'] or 0
         active_movie_count = Movie.objects.filter(status='hot').count()
+        session_count = Session.objects.count()
 
         return Response({
             'order_count': order_count,

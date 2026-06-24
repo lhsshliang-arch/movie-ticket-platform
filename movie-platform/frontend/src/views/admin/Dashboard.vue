@@ -43,9 +43,9 @@ export default {
   data () {
     return {
       cards: [
-        { label: '今日订单', value: 0 },
-        { label: '今日票房', value: '0' },
-        { label: '今日场次', value: 0 },
+        { label: '总订单', value: 0 },
+        { label: '总票房', value: '0' },
+        { label: '总场次', value: 0 },
         { label: '在映电影', value: 0 }
       ]
     }
@@ -55,9 +55,9 @@ export default {
       const res = await getStatsOverview()
       const d = res.data
       this.cards = [
-        { label: '今日订单', value: d.order_count },
-        { label: '今日票房', value: '¥' + d.box_office },
-        { label: '今日场次', value: d.session_count },
+        { label: '总订单', value: d.order_count },
+        { label: '总票房', value: '¥' + d.box_office },
+        { label: '总场次', value: d.session_count },
         { label: '在映电影', value: d.active_movie_count }
       ]
     } catch (e) {
