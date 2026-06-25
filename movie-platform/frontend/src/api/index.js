@@ -14,11 +14,16 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// 响应拦截器：401 自动刷新 token
+// 响应拦截器：401 自动刷新 token（不拦截登录接口的 401）
 api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
+
+    // 登录接口的 401 直接透传，让 Login.vue 显示错误信息
+    if (originalRequest.url === '/auth/login/') {
+      return Promise.reject(error)
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
@@ -38,6 +43,7 @@ api.interceptors.response.use(
         window.location.href = '/login'
       }
     }
+
     return Promise.reject(error)
   }
 )

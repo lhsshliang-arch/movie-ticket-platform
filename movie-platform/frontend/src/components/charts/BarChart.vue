@@ -6,15 +6,24 @@
 import * as echarts from 'echarts'
 
 export default {
-  props: { data: Array }, // [{name, value}]
+  props: { data: Array },
   watch: {
-    data () { this.render() }
+    data: {
+      handler () { this.$nextTick(() => this.render()) },
+      deep: true
+    }
   },
   mounted () {
-    this.chart = echarts.init(this.$refs.chart)
-    this.render()
+    this.$nextTick(() => {
+      this.chart = echarts.init(this.$refs.chart)
+      this.render()
+      window.addEventListener('resize', this.resize)
+    })
   },
   methods: {
+    resize () {
+      this.chart?.resize()
+    },
     render () {
       if (!this.chart) return
       this.chart.setOption({
@@ -22,17 +31,18 @@ export default {
         xAxis: { type: 'value' },
         yAxis: {
           type: 'category',
-          data: this.data.map(d => d.name).reverse()
+          data: (this.data || []).map(d => d.name).reverse()
         },
         series: [{
           type: 'bar',
-          data: this.data.map(d => d.value).reverse(),
+          data: (this.data || []).map(d => d.value).reverse(),
           itemStyle: { color: '#409EFF' }
         }]
       })
     }
   },
   beforeDestroy () {
+    window.removeEventListener('resize', this.resize)
     this.chart?.dispose()
   }
 }

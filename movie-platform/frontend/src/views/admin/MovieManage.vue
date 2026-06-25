@@ -28,12 +28,12 @@
     </el-table>
 
     <el-pagination
-      v-if="total > 10"
+      v-if="total > 8"
       style="margin-top:20px;text-align:right"
       background
       layout="total, prev, pager, next"
       :total="total"
-      :page-size="10"
+      :page-size="8"
       :current-page.sync="page"
       @current-change="onPageChange"
     />

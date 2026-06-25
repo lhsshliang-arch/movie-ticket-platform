@@ -40,8 +40,14 @@ class CaptchaView(APIView):
             y2 = random.randint(0, h)
             draw.line((x1, y1, x2, y2), fill=(random.randint(100, 180), random.randint(100, 180), random.randint(100, 180)), width=2)
 
-        # 字体
-        font_paths = ['consolab.ttf', 'comicbd.ttf', 'impact.ttf', 'courbd.ttf']
+        # 字体（Windows + Linux 兼容）
+        font_paths = [
+            'consolab.ttf', 'comicbd.ttf', 'impact.ttf', 'courbd.ttf',           # Windows
+            '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',                        # CentOS
+            '/usr/share/fonts/liberation/LiberationSans-Bold.ttf',                # CentOS 备用
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',                   # Debian/Ubuntu
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',   # Debian 备用
+        ]
         font = None
         for fp in font_paths:
             try:

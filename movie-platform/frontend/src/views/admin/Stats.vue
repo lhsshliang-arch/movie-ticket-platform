@@ -67,9 +67,9 @@ export default {
         today.toISOString().slice(0, 10)
       ],
       cards: [
-        { label: '今日订单', value: 0 },
-        { label: '今日票房', value: '¥0' },
-        { label: '今日场次', value: 0 },
+        { label: '总订单', value: 0 },
+        { label: '总票房', value: '¥0' },
+        { label: '总场次', value: 0 },
         { label: '在映电影', value: 0 }
       ],
       categoryData: [],
@@ -85,23 +85,27 @@ export default {
       const [start, end] = this.dateRange
       const params = { start, end }
 
-      const [overview, category, boxOffice, ranking] = await Promise.all([
-        getStatsOverview(),
-        getCategoryOrders(params),
-        getDailyBoxOffice(params),
-        getMovieRanking()
-      ])
+      try {
+        const [overview, category, boxOffice, ranking] = await Promise.all([
+          getStatsOverview(),
+          getCategoryOrders(params),
+          getDailyBoxOffice(params),
+          getMovieRanking()
+        ])
 
-      const d = overview.data
-      this.cards = [
-        { label: '今日订单', value: d.order_count },
-        { label: '今日票房', value: '¥' + d.box_office },
-        { label: '今日场次', value: d.session_count },
-        { label: '在映电影', value: d.active_movie_count }
-      ]
-      this.categoryData = category.data
-      this.boxOfficeData = boxOffice.data
-      this.rankingData = ranking.data
+        const d = overview.data
+        this.cards = [
+          { label: '总订单', value: d.order_count },
+          { label: '总票房', value: '¥' + d.box_office },
+          { label: '总场次', value: d.session_count },
+          { label: '在映电影', value: d.active_movie_count }
+        ]
+        this.categoryData = category.data
+        this.boxOfficeData = boxOffice.data
+        this.rankingData = ranking.data
+      } catch (e) {
+        this.$message.error('加载统计数据失败')
+      }
     }
   }
 }

@@ -6,15 +6,24 @@
 import * as echarts from 'echarts'
 
 export default {
-  props: { data: Array }, // [{name, value}]
+  props: { data: Array },
   watch: {
-    data () { this.render() }
+    data: {
+      handler () { this.$nextTick(() => this.render()) },
+      deep: true
+    }
   },
   mounted () {
-    this.chart = echarts.init(this.$refs.chart)
-    this.render()
+    this.$nextTick(() => {
+      this.chart = echarts.init(this.$refs.chart)
+      this.render()
+      window.addEventListener('resize', this.resize)
+    })
   },
   methods: {
+    resize () {
+      this.chart?.resize()
+    },
     render () {
       if (!this.chart) return
       this.chart.setOption({
@@ -22,12 +31,13 @@ export default {
         series: [{
           type: 'pie',
           radius: ['40%', '70%'],
-          data: this.data.map(d => ({ name: d.name, value: d.value }))
+          data: (this.data || []).map(d => ({ name: d.name, value: d.value }))
         }]
       })
     }
   },
   beforeDestroy () {
+    window.removeEventListener('resize', this.resize)
     this.chart?.dispose()
   }
 }

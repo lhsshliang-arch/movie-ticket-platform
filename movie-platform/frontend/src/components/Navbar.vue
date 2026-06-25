@@ -1,7 +1,8 @@
 <template>
   <el-menu mode="horizontal" router>
-    <el-menu-item index="/">
-      <h3>电影平台</h3>
+    <el-menu-item index="/" style="display:flex;align-items:center">
+      <img src="@/assets/image.png" style="height:36px;margin-right:8px" />
+      <h3 style="margin:0">电影票务平台</h3>
     </el-menu-item>
 
     <el-menu-item style="float:right" v-if="loggedIn">

@@ -175,10 +175,11 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 8,
 }
 
-# 验证码缓存（内存）
+# 验证码缓存（文件缓存，Gunicorn 多 worker 共享）
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': os.path.join(BASE_DIR, 'cache'),
     }
 }
 

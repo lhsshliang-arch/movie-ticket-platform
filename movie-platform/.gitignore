@@ -68,3 +68,5 @@ desktop.ini
 # ========================
 gunicorn.pid
 logs/
+cache/
+*.djcache

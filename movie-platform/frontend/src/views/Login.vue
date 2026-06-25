@@ -76,8 +76,8 @@ export default {
         this.$message.success('登录成功')
         this.$router.push('/')
       } catch (e) {
-        const detail = e.response?.data?.detail
-        this.$message.error(typeof detail === 'string' ? detail : '登录失败')
+        const msg = e.response?.data?.detail || e.response?.data?.non_field_errors?.[0] || '用户名或密码错误'
+        this.$message.error(typeof msg === 'string' ? msg : '登录失败')
       } finally {
         this.loading = false
       }

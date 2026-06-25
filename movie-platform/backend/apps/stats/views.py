@@ -22,14 +22,18 @@ class BaseStatsView(APIView):
             return None
 
     def _get_date_range(self, request):
-        """不传 start/end 则默认最近7天"""
+        """不传 start/end 则默认最近90天，返回时区感知的 datetime"""
         end = self._parse_date(request.query_params.get('end'))
         start = self._parse_date(request.query_params.get('start'))
         if not end:
             end = timezone.now().date()
         if not start:
-            start = end - timedelta(days=6)
-        return start, end
+            start = end - timedelta(days=89)
+        # 转为时区感知的 datetime 范围（避免 MySQL 时区表缺失导致 __date 查询失败）
+        tz = timezone.get_current_timezone()
+        start_dt = timezone.make_aware(datetime.combine(start, datetime.min.time()), tz)
+        end_dt = timezone.make_aware(datetime.combine(end, datetime.max.time()), tz)
+        return start_dt, end_dt
 
 
 class OverviewView(BaseStatsView):
@@ -55,12 +59,12 @@ class CategoryOrdersView(BaseStatsView):
     """各分类订单统计（饼图）"""
 
     def get(self, request):
-        start, end = self._get_date_range(request)
+        start_dt, end_dt = self._get_date_range(request)
 
         data = Order.objects.filter(
             status='paid',
-            paid_at__date__gte=start,
-            paid_at__date__lte=end,
+            paid_at__gte=start_dt,
+            paid_at__lte=end_dt,
         ).values('session__movie__categories__name').annotate(
             value=Count('id'),
         ).order_by('-value')
@@ -75,18 +79,21 @@ class DailyBoxOfficeView(BaseStatsView):
     """每日票房趋势（折线图）"""
 
     def get(self, request):
-        start, end = self._get_date_range(request)
+        start_dt, end_dt = self._get_date_range(request)
 
+        # 用 raw queryset 手动分组，因为 MySQL 时区表缺失 __date 不可用
         data = Order.objects.filter(
             status='paid',
-            paid_at__date__gte=start,
-            paid_at__date__lte=end,
-        ).values('paid_at__date').annotate(
+            paid_at__gte=start_dt,
+            paid_at__lte=end_dt,
+        ).extra(
+            select={'paid_date': 'DATE(paid_at)'}
+        ).values('paid_date').annotate(
             value=Sum('total_price'),
-        ).order_by('paid_at__date')
+        ).order_by('paid_date')
 
         return Response([
-            {'date': str(item['paid_at__date']), 'value': float(item['value'])}
+            {'date': str(item['paid_date']), 'value': float(item['value'])}
             for item in data
         ])
 

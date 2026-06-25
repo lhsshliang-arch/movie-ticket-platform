@@ -22,6 +22,17 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-pagination
+      v-if="total > 8"
+      style="margin-top:20px;text-align:right"
+      background
+      layout="total, prev, pager, next"
+      :total="total"
+      :page-size="8"
+      :current-page.sync="page"
+      @current-change="onPageChange"
+    />
   </div>
 </template>
 
@@ -32,6 +43,8 @@ export default {
   data () {
     return {
       orders: [],
+      total: 0,
+      page: 1,
       statusFilter: ''
     }
   },
@@ -40,10 +53,15 @@ export default {
   },
   methods: {
     async fetchOrders () {
-      const params = { page_size: 999 }
+      const params = { page: this.page }
       if (this.statusFilter) params.status = this.statusFilter
       const res = await getAllOrders(params)
       this.orders = res.data.results
+      this.total = res.data.count
+    },
+    onPageChange (page) {
+      this.page = page
+      this.fetchOrders()
     }
   }
 }

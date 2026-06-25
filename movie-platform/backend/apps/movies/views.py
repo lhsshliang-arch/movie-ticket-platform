@@ -38,7 +38,7 @@ class MovieListAPIView(ListAPIView):
 
 
 class MovieDetailView(RetrieveAPIView):
-    queryset = Movie.objects.all()
+    queryset = Movie.objects.all().prefetch_related('categories')
     serializer_class = MovieReadSerializer
 
     def retrieve(self, request, *args, **kwargs):
@@ -202,10 +202,10 @@ class RecommendView(APIView):
         cat_weight = defaultdict(float)
         country_weight = defaultdict(float)
         lang_weight = defaultdict(float)
-        interacted_ids = set()
+        purchased_ids = set()     # 已购买的 → 不推荐
+        wanted_ids = set()        # 想看过的 → 仍然推荐，但降低优先级
 
-        def add_interaction(movie, w):
-            interacted_ids.add(movie.id)
+        def add_interaction(movie, w, exclude=False):
             for cat in movie.categories.all():
                 cat_weight[cat.id] += w
             for c in _split_names(movie.country):
@@ -213,12 +213,14 @@ class RecommendView(APIView):
             for l in _split_names(movie.language):
                 lang_weight[l] += w
 
-        # 已支付订单 - 权重 3
+        # 已支付订单 - 权重 3，且排除（已看过不再推荐）
         for order in Order.objects.filter(user=user, status='paid').select_related('session__movie'):
+            purchased_ids.add(order.session.movie.id)
             add_interaction(order.session.movie, 3)
 
-        # 想看记录 - 权重 2
+        # 想看记录 - 权重 2，不排除但记录
         for wr in WantRecord.objects.filter(user=user).select_related('movie'):
+            wanted_ids.add(wr.movie.id)
             add_interaction(wr.movie, 2)
 
         # 浏览记录 - 权重 1
@@ -240,7 +242,8 @@ class RecommendView(APIView):
             movie_scores = {}
 
             for movie in hot_movies:
-                if movie.id in interacted_ids:
+                # 只排除已购买的，想看过的仍然可以推荐
+                if movie.id in purchased_ids:
                     continue
 
                 # 分类匹配 — 幂次归一化，压制弱信号
@@ -269,10 +272,12 @@ class RecommendView(APIView):
                     )
                 lang_score = (lang_score / max_lang) * 4 * boost
 
-                movie_scores[movie.id] = cat_score + country_score + lang_score + movie.score
+                # 想看过的电影微调：仍可推荐但排在同分段末尾
+                want_penalty = 2 if movie.id in wanted_ids else 0
+                movie_scores[movie.id] = cat_score + country_score + lang_score + movie.score - want_penalty
 
             sorted_ids = sorted(movie_scores, key=movie_scores.get, reverse=True)[:4]
-            movies = list(Movie.objects.filter(id__in=sorted_ids))
+            movies = list(Movie.objects.filter(id__in=sorted_ids).prefetch_related('categories'))
             movies.sort(key=lambda m: sorted_ids.index(m.id))
 
         serializer = MovieReadSerializer(movies, many=True)

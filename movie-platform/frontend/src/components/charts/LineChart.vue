@@ -6,30 +6,40 @@
 import * as echarts from 'echarts'
 
 export default {
-  props: { data: Array }, // [{date, value}]
+  props: { data: Array },
   watch: {
-    data () { this.render() }
+    data: {
+      handler () { this.$nextTick(() => this.render()) },
+      deep: true
+    }
   },
   mounted () {
-    this.chart = echarts.init(this.$refs.chart)
-    this.render()
+    this.$nextTick(() => {
+      this.chart = echarts.init(this.$refs.chart)
+      this.render()
+      window.addEventListener('resize', this.resize)
+    })
   },
   methods: {
+    resize () {
+      this.chart?.resize()
+    },
     render () {
       if (!this.chart) return
       this.chart.setOption({
         tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: this.data.map(d => d.date) },
+        xAxis: { type: 'category', data: (this.data || []).map(d => d.date) },
         yAxis: { type: 'value' },
         series: [{
           type: 'line',
-          data: this.data.map(d => d.value),
+          data: (this.data || []).map(d => d.value),
           smooth: true
         }]
       })
     }
   },
   beforeDestroy () {
+    window.removeEventListener('resize', this.resize)
     this.chart?.dispose()
   }
 }
