@@ -342,23 +342,25 @@ server {
         alias /web/movie-platform/backend/media/;
     }
 
-    # API 请求 → Gunicorn
-    location /api/ {
+    # API 请求 → Gunicorn（^~ 确保优先于 SPA 兜底）
+    location ^~ /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Django Admin → Gunicorn
-    location /admin/ {
+    # Django Admin → Gunicorn（^~ 确保优先于 SPA 兜底）
+    location ^~ /admin/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Vue SPA 兜底：其他路径返回 index.html（前端路由）
+    # Vue SPA 兜底：仅前端路由返回 index.html
     location / {
         try_files $uri $uri/ /index.html;
     }
